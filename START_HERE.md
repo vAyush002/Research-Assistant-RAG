@@ -160,7 +160,7 @@ docker-compose up
 
 Your API key is already in `.env`:
 ```env
-GROQ_API_KEY=GROQ_API_KEY_REMOVED
+GROQ_API_KEY="key"
 ```
 
 The API key is **already configured** - you can start using it immediately!

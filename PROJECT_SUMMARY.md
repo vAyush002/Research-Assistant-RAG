@@ -295,7 +295,7 @@ See deployment section in README.md
 
 ### API Key Setup
 ```env
-GROQ_API_KEY=GROQ_API_KEY_REMOVED
+GROQ_API_KEY="key"
 ```
 
 ### Model Selection
