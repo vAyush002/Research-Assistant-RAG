@@ -8,6 +8,7 @@ sidebar is used only to generate the final answer with the chosen provider.
 The key lives in session memory only — it is never written to disk or logged.
 """
 
+import html
 import io
 import logging
 from datetime import datetime
@@ -36,9 +37,14 @@ st.markdown(
     <style>
     .main-header { font-size: 2.8em; font-weight: bold; color: #1f77b4; margin-bottom: 4px; }
     .subheader { font-size: 1.2em; color: #666; margin-bottom: 16px; }
-    .response-box { background-color: #f0f2f6; padding: 20px; border-radius: 10px;
-                    border-left: 5px solid #1f77b4; margin: 10px 0; }
-    .source-box { background-color: #e8f4f8; padding: 12px; border-radius: 8px; margin: 8px 0; }
+    .response-box { background-color: #eaf3ff; color: #10243e !important;
+                    padding: 18px; border-radius: 10px; border-left: 5px solid #1f77b4;
+                    margin: 10px 0; white-space: pre-wrap; line-height: 1.55;
+                    font-size: 1.02em; }
+    .response-box * { color: #10243e !important; }
+    .source-box { background-color: #1f77b4; color: #ffffff !important;
+                  padding: 10px 14px; border-radius: 8px; margin: 6px 0; }
+    .source-box * { color: #ffffff !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -71,6 +77,22 @@ def get_preprocessor() -> TextPreprocessor:
 # --- Session state ----------------------------------------------------------
 st.session_state.setdefault("chat_history", [])
 st.session_state.setdefault("api_keys", {})  # per-provider, in-memory only
+st.session_state.setdefault("ingested_files", set())  # files already indexed this session
+
+
+def _file_key(uploaded_file) -> str:
+    """Stable identity for an uploaded file so it is ingested only once,
+    even though st.file_uploader re-supplies it on every rerun."""
+    return getattr(uploaded_file, "file_id", None) or f"{uploaded_file.name}:{uploaded_file.size}"
+
+
+def _render_kb_count(slot, store) -> None:
+    """Render the current indexed-chunk count into a sidebar placeholder."""
+    try:
+        n = store.get_collection_stats().get("total_documents", 0)
+    except Exception:
+        n = 0
+    slot.metric("Chunks indexed", n)
 
 
 def extract_text(uploaded_file) -> str:
@@ -120,11 +142,8 @@ with st.sidebar:
     st.divider()
     st.subheader("📊 Knowledge Base")
     vstore = get_vector_store()
-    try:
-        doc_count = vstore.get_collection_stats().get("total_documents", 0)
-    except Exception:
-        doc_count = 0
-    st.metric("Chunks indexed", doc_count)
+    kb_count_slot = st.empty()
+    _render_kb_count(kb_count_slot, vstore)
 
     if st.button("🗑️ Clear Knowledge Base", use_container_width=True):
         try:
@@ -153,20 +172,26 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True,
 )
 
+# Only ingest files we haven't already indexed this session. st.file_uploader
+# re-supplies the same files on every rerun, so without this guard each rerun
+# would re-ingest them — inflating the chunk count and blocking everything else.
 if uploaded_files:
-    ingest_pipeline = RAGPipeline(embedder, vstore, preprocessor=preprocessor)
-    for uploaded_file in uploaded_files:
-        with st.spinner(f"Processing {uploaded_file.name}…"):
-            try:
-                text = extract_text(uploaded_file)
-                if not text.strip():
-                    st.warning(f"No extractable text in {uploaded_file.name}.")
-                    continue
-                result = ingest_pipeline.ingest_document(text, uploaded_file.name)
-                st.success(f"✅ {uploaded_file.name}: {result['chunks_created']} chunks indexed")
-            except Exception as e:
-                st.error(f"❌ Error processing {uploaded_file.name}: {e}")
-    st.rerun()
+    new_files = [f for f in uploaded_files if _file_key(f) not in st.session_state.ingested_files]
+    if new_files:
+        ingest_pipeline = RAGPipeline(embedder, vstore, preprocessor=preprocessor)
+        for uploaded_file in new_files:
+            st.session_state.ingested_files.add(_file_key(uploaded_file))  # mark handled (exactly once)
+            with st.spinner(f"Processing {uploaded_file.name}…"):
+                try:
+                    text = extract_text(uploaded_file)
+                    if not text.strip():
+                        st.warning(f"No extractable text in {uploaded_file.name}.")
+                        continue
+                    result = ingest_pipeline.ingest_document(text, uploaded_file.name)
+                    st.success(f"✅ {uploaded_file.name}: {result['chunks_created']} chunks indexed")
+                except Exception as e:
+                    st.error(f"❌ Error processing {uploaded_file.name}: {e}")
+        _render_kb_count(kb_count_slot, vstore)  # refresh sidebar count in place (no rerun → no loop)
 
 st.divider()
 
@@ -189,12 +214,18 @@ if st.button("🚀 Get Answer", type="primary", use_container_width=True):
                 result = pipeline.query(question)
 
             st.markdown("### 💡 Answer")
-            st.markdown(f"<div class='response-box'>{result['answer']}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='response-box'>{html.escape(result['answer'])}</div>",
+                unsafe_allow_html=True,
+            )
 
             if result.get("sources"):
                 st.markdown("### 📚 Sources")
                 for source in result["sources"]:
-                    st.markdown(f"<div class='source-box'>{source}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div class='source-box'>{html.escape(source)}</div>",
+                        unsafe_allow_html=True,
+                    )
 
             scores = result.get("similarity_scores") or []
             if scores:

@@ -1,87 +1,64 @@
 # AWS EC2 Deployment Guide
 
-This project is now configured to run on AWS EC2 using environment variables for API endpoints and host configuration.
+The app runs as a single Streamlit process. API keys are entered in the sidebar at
+runtime, so no secrets need to live on the server.
 
-## 1. Launch EC2 Instance
+## 1. Launch an EC2 instance
 
-- Use Ubuntu 22.04 LTS or similar.
-- Open security group ports:
-  - `22` for SSH
-  - `8000` for FastAPI (backend)
-  - `8501` for Streamlit (frontend)
+- Ubuntu 22.04 LTS (or similar).
+- Open security-group ports:
+  - `22` — SSH
+  - `8501` — Streamlit
+  - `8000` — only if you also run the optional FastAPI backend
 
-> For a production setup, you can instead expose only `80`/`443` and use Nginx as a reverse proxy.
+> For production, prefer exposing only `80`/`443` behind Nginx as a reverse proxy.
 
-## 2. SSH into the Instance
+## 2. SSH in
 
 ```bash
 ssh -i /path/to/key.pem ubuntu@<EC2_PUBLIC_IP>
 ```
 
-## 3. Install System Packages
+## 3. Install system packages
 
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip git build-essential
 ```
 
-## 4. Clone the Repo
+## 4. Clone and set up
 
 ```bash
-git clone <your-repo-url> app
-cd app
-```
-
-## 5. Create Python Environment
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
+git clone <your-repo-url> app && cd app
+python3 -m venv venv && source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## 6. Configure Environment Variables
+## 5. (Optional) Pre-load documents
 
 ```bash
-cp .env.example .env
+mkdir -p data && cp /path/to/your/docs/*.pdf data/
+python load_sample_documents.py data
 ```
 
-Edit `.env` and set:
-
-- `GROQ_API_KEY`
-- `API_BASE_URL=http://<EC2_PUBLIC_IP>:8000`
-
-If you want Streamlit to call the backend by public IP, use the EC2 public address.
-
-## 7. Initialize Data (optional)
-
-```bash
-python load_sample_documents.py
-```
-
-## 8. Start Backend and Frontend
-
-Start backend:
-
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-Start frontend:
+## 6. Run the app
 
 ```bash
 streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-## 9. Access the App
+Open `http://<EC2_PUBLIC_IP>:8501`, then enter your provider API key in the sidebar.
 
-- Streamlit frontend: `http://<EC2_PUBLIC_IP>:8501`
-- Backend health: `http://<EC2_PUBLIC_IP>:8000/health`
+## 7. (Optional) Run the FastAPI backend
 
-## 10. Recommended Production Improvements
+```bash
+cp .env.example .env        # set GROQ_API_KEY
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-- Use `tmux` or `screen` to keep processes running.
-- Use `systemd` services for startup.
-- Use Nginx to reverse proxy `8501` and `8000` behind `80`/`443`.
-- Enable HTTPS with Certbot.
+## 8. Production recommendations
+
+- Use a `systemd` service (or `tmux`/`screen`) to keep the process running.
+- Put Nginx in front of `8501` and enable HTTPS with Certbot.
+- Keep API keys out of the server — the sidebar entry is per-session and safest.
