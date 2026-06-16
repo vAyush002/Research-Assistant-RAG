@@ -148,9 +148,6 @@ with st.sidebar:
     if st.button("🗑️ Clear Knowledge Base", use_container_width=True):
         try:
             vstore.delete_collection()
-            vstore.collection = vstore.client.get_or_create_collection(
-                name=vstore.collection_name, metadata={"hnsw:space": "cosine"}
-            )
             st.success("Knowledge base cleared.")
             st.rerun()
         except Exception as e:

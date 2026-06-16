@@ -17,7 +17,10 @@ langchain-anthropic==1.4.6
 langchain-openai==1.3.2
 
 # --- Vector store & embeddings ---
-chromadb==1.5.9
+# Vector store is an in-memory NumPy cosine-similarity index (see vector_store.py).
+# ChromaDB was removed: it pulls in opentelemetry/grpc/protobuf, which crashes on
+# import under some Python builds (protobuf "Descriptors cannot be created directly").
+numpy>=1.26
 sentence-transformers==5.5.1
 
 # --- Document parsing & utils ---

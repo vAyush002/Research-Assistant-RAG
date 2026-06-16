@@ -54,7 +54,7 @@ Then in the browser:
 streamlit_app.py        # The app (run this)
 rag_pipeline.py         # RAG pipeline + build_llm() provider factory
 embeddings.py           # Local sentence-transformers embeddings
-vector_store.py         # ChromaDB wrapper
+vector_store.py         # In-memory NumPy cosine-similarity vector store
 preprocessing.py        # Text cleaning + chunking
 utils.py                # Config / env helpers (for the optional backend)
 main.py                 # Optional FastAPI REST backend

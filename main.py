@@ -192,15 +192,6 @@ async def clear_database():
     """Clear all documents from the knowledge base"""
     try:
         rag_pipeline.vector_store.delete_collection()
-        
-        # Reinitialize collection
-        rag_pipeline.vector_store.collection = (
-            rag_pipeline.vector_store.client.get_or_create_collection(
-                name=rag_pipeline.vector_store.collection_name,
-                metadata={"hnsw:space": "cosine"}
-            )
-        )
-        
         logger.info("Database cleared successfully")
         return format_response(
             success=True,
