@@ -1,0 +1,10 @@
+[server]
+# Deployed apps don't need hot-reload. Disabling the file watcher stops
+# Streamlit from scanning every installed package (e.g. transformers), which
+# otherwise floods the logs with harmless "No module named 'torchvision'"
+# warnings and wastes CPU.
+fileWatcherType = "none"
+headless = true
+
+[browser]
+gatherUsageStats = false

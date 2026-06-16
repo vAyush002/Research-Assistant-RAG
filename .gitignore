@@ -4,4 +4,4 @@ __pycache__/
 .env
 database/chroma_db/
 logs/
-.streamlit/
+.streamlit/secrets.toml
