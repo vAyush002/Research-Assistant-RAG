@@ -5,3 +5,4 @@ __pycache__/
 database/chroma_db/
 logs/
 .streamlit/
+START_HERE.md

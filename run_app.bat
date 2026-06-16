@@ -1,6 +1,10 @@
 @echo off
 title Smart Research Assistant
 
-start cmd /k backend.bat
-timeout /t 5 >nul
-start cmd /k frontend.bat
+cd /d "%~dp0"
+call venv\Scripts\activate
+
+echo Starting Smart Research Assistant...
+streamlit run streamlit_app.py
+
+pause

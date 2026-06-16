@@ -6,7 +6,10 @@ from typing import Optional, List
 import PyPDF2
 import os
 
-from rag_pipeline import RAGPipeline
+from rag_pipeline import RAGPipeline, build_llm
+from embeddings import EmbeddingGenerator
+from vector_store import VectorStore
+from preprocessing import TextPreprocessor
 from utils import load_environment_variables, configure_logging, format_response
 
 # Configure logging
@@ -32,17 +35,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize RAG Pipeline
+# Initialize RAG Pipeline (Groq by default; key comes from the environment).
+# The backend starts even without a key so document upload still works — only
+# /query needs the LLM, and it errors clearly if the key is missing.
 try:
-    rag_pipeline = RAGPipeline(
-        groq_api_key=config["groq_api_key"],
-        llm_model=config["llm_model"],
-        embedding_model=config["embedding_model"],
-        db_path=config["chroma_db_path"],
+    embedding_generator = EmbeddingGenerator(model_name=config["embedding_model"])
+    vector_store = VectorStore(db_path=config["chroma_db_path"])
+    preprocessor = TextPreprocessor(
         chunk_size=config["chunk_size"],
         chunk_overlap=config["chunk_overlap"],
-        top_k=config["top_k_documents"],
-        temperature=config["temperature"]
+    )
+
+    llm = None
+    if config.get("groq_api_key"):
+        llm = build_llm(
+            "Groq", config["groq_api_key"], config["llm_model"],
+            temperature=config["temperature"],
+        )
+    else:
+        logger.warning(
+            "GROQ_API_KEY not set — /query is unavailable until it is configured."
+        )
+
+    rag_pipeline = RAGPipeline(
+        embedding_generator, vector_store, llm=llm,
+        preprocessor=preprocessor, top_k=config["top_k_documents"],
     )
     logger.info("RAG Pipeline initialized successfully")
 except Exception as e:
@@ -74,20 +91,6 @@ class StatsResponse(BaseModel):
     collection_name: str
     total_documents: int
     db_path: str
-
-
-# Helper function to extract text from PDF
-def extract_text_from_pdf(pdf_content: bytes) -> str:
-    """Extract text from PDF content"""
-    try:
-        pdf_reader = PyPDF2.PdfReader(open(os.path.splitext("temp.pdf")[0] + ".pdf", "wb"))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        return text
-    except Exception as e:
-        logger.error(f"Error extracting text from PDF: {str(e)}")
-        raise
 
 
 # API Endpoints
@@ -229,6 +232,6 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         app,
-        host=config["fastapi_host"],
-        port=config["fastapi_port"]
+        host=config.get("fastapi_host", "0.0.0.0"),
+        port=config.get("fastapi_port", 8000)
     )

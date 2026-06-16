@@ -38,6 +38,15 @@ def load_environment_variables():
 
         "temperature": float(
             os.getenv("TEMPERATURE", 0.7)
+        ),
+
+        "fastapi_host": os.getenv(
+            "FASTAPI_HOST",
+            "0.0.0.0"
+        ),
+
+        "fastapi_port": int(
+            os.getenv("FASTAPI_PORT", 8000)
         )
     }
 
